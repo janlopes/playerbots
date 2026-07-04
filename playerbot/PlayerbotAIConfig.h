@@ -398,6 +398,11 @@ public:
     //LM BEGIN
     std::string llmApiEndpoint, llmApiKey, llmApiJson, llmPrePrompt, llmPreRpgPrompt, llmPrompt, llmPostPrompt, llmResponseStartPattern, llmResponseEndPattern, llmResponseDeletePattern, llmResponseSplitPattern;
     uint32 llmEnabled, llmContextLength, llmBotToBotChatChance, llmGenerationTimeout, llmMaxSimultaniousGenerations, llmRpgAIChatChance;
+    // Party/raid bot-to-bot ai chat. Only ever active with a real player present in the group (see PlayerbotAI::GroupHasRealPlayer).
+    bool llmPartyBotToBotChatEnabled;
+    uint32 llmPartyBotToBotChatChance, llmPartyBotToBotDelayMin, llmPartyBotToBotDelayMax;
+    uint32 llmPartyBotToBotInitiateChance, llmPartyBotToBotInitiateCooldownMin, llmPartyBotToBotInitiateCooldownMax;
+    std::string llmPartyPrePrompt, llmPartyInitiatePrompt;
     bool llmGlobalContext;
     ParsedUrl llmEndPointUrl;
     std::set<uint32> llmBlockedReplyChannels;

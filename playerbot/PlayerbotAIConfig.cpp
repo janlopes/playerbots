@@ -720,6 +720,25 @@ bool PlayerbotAIConfig::Initialize()
     llmBotToBotChatChance = config.GetIntDefault("AiPlayerbot.LLMBotToBotChatChance", 0);
     llmRpgAIChatChance = config.GetIntDefault("AiPlayerbot.LLMRpgAIChatChance", 100);
 
+    // Master on/off switch for bots using ai chat to talk to each other in party/raid.
+    // Always requires a real player present in the group - bots never do this while alone (see PlayerbotAI::GroupHasRealPlayer).
+    // Never applies to any other channel (general, LFG, guild, world, etc).
+    llmPartyBotToBotChatEnabled = config.GetBoolDefault("AiPlayerbot.LLMPartyBotToBotChatEnabled", false);
+    // Chance (0-100) that a bot will reply, via ai chat, to another bot's party/raid message.
+    llmPartyBotToBotChatChance = config.GetIntDefault("AiPlayerbot.LLMPartyBotToBotChatChance", 20);
+    // Cooldown range (seconds) applied after a bot-to-bot ai chat reply in party/raid, to keep exchanges paced.
+    llmPartyBotToBotDelayMin = config.GetIntDefault("AiPlayerbot.LLMPartyBotToBotDelayMin", 8);
+    llmPartyBotToBotDelayMax = config.GetIntDefault("AiPlayerbot.LLMPartyBotToBotDelayMax", 20);
+    // Chance (0-100), checked periodically, that a bot will spontaneously start a conversation
+    // (question/joke/comment) in party/raid instead of only reacting to others.
+    llmPartyBotToBotInitiateChance = config.GetIntDefault("AiPlayerbot.LLMPartyBotToBotInitiateChance", 5);
+    // Minimum time (seconds) between a given bot's own attempts to start a conversation this way.
+    llmPartyBotToBotInitiateCooldownMin = config.GetIntDefault("AiPlayerbot.LLMPartyBotToBotInitiateCooldownMin", 120);
+    llmPartyBotToBotInitiateCooldownMax = config.GetIntDefault("AiPlayerbot.LLMPartyBotToBotInitiateCooldownMax", 300);
+
+    llmPartyPrePrompt = config.GetStringDefault("AiPlayerbot.LLMPartyPrePrompt", "You are a roleplaying character in World of Warcraft: <expansion name>. Your name is <bot name>. You are level <bot level> and play as a <bot gender> <bot race> <bot class> that is currently in <bot subzone> <bot zone>. You are chatting <channel name> with your group, currently: <group members>. The <other type> <other name> just said something to the group. Answer as a roleplaying character, referring to others by name when it fits naturally. Limit responses to 100 characters.");
+    llmPartyInitiatePrompt = config.GetStringDefault("AiPlayerbot.LLMPartyInitiatePrompt", "You are a roleplaying character in World of Warcraft: <expansion name>. Your name is <bot name>. You are level <bot level> and play as a <bot gender> <bot race> <bot class> that is currently in <bot subzone> <bot zone>. You are chatting <channel name> with your group, currently: <group members>. Start some small talk: ask a short question, make a joke or a comment to the group. Referring to others by name is encouraged. Limit responses to 100 characters.");
+
     std::list<std::string> blockedChannels;
     LoadListString<std::list<std::string>>(config.GetStringDefault("AiPlayerbot.LLMBlockedReplyChannels", ""), blockedChannels);
     std::map<std::string, ChatChannelSource> sourceName;

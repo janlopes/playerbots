@@ -187,6 +187,15 @@ namespace ai
         AIChatStrategy(PlayerbotAI* ai) : Strategy(ai) {}
         virtual int GetType() override { return STRATEGY_TYPE_NONCOMBAT; }
         virtual std::string getName() override { return "ai chat"; }
+        virtual void InitNonCombatTriggers(std::list<TriggerNode*>& triggers) override
+        {
+            // Occasionally have the bot start small talk in its party/raid (see AiChatInitiateAction).
+            // The action itself checks AiPlayerbot.LLMPartyBotToBotChatEnabled, group membership,
+            // a real player being present in the group, its own cooldown and the initiate chance.
+            triggers.push_back(new TriggerNode(
+                "seldom",
+                NextAction::array(0, new NextAction("ai chat initiate", 1.0f), NULL)));
+        }
 #ifdef GenerateBotHelp
         virtual std::string GetHelpName() { return "ai chat"; } //Must equal iternal name
         virtual std::string GetHelpDescription() {

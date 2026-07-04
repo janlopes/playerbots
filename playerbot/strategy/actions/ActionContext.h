@@ -27,6 +27,7 @@
 #include "OutfitAction.h"
 #include "RevealGatheringItemAction.h"
 #include "SayAction.h"
+#include "AiChatInitiateAction.h"
 #include "OutfitAction.h"
 #include "RandomBotUpdateAction.h"
 #include "RemoveAuraAction.h"
@@ -174,6 +175,7 @@ namespace ai
             creators["random bot update"] = [](PlayerbotAI* ai) { return new RandomBotUpdateAction(ai); };
             creators["delay"] = [](PlayerbotAI* ai) { return new DelayAction(ai); };
             creators["greet"] = [](PlayerbotAI* ai) { return new GreetAction(ai); };
+            creators["ai chat initiate"] = [](PlayerbotAI* ai) { return new AiChatInitiateAction(ai); };
             creators["check values"] = [](PlayerbotAI* ai) { return new CheckValuesAction(ai); };
             creators["set avoid area"] = [](PlayerbotAI* ai) { return new SetAvoidAreaAction(ai); };
             creators["ra"] = [](PlayerbotAI* ai) { return new RemoveAuraAction(ai); };

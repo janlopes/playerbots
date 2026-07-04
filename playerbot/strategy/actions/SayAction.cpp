@@ -527,17 +527,46 @@ void ChatReplyAction::ChatReplyDo(Player* bot, uint32 type, uint32 guid1, uint32
 
         std::string llmContext = AI_VALUE(std::string, "manual string::llmcontext" + llmChannel);
 
+        // Bot-to-bot ai chat in party/raid: only ever considered with a real player present in the group.
+        bool isPartyOrRaidBotToBot = (chatChannelSource == ChatChannelSource::SRC_PARTY || chatChannelSource == ChatChannelSource::SRC_RAID)
+            && sPlayerbotAIConfig.llmPartyBotToBotChatEnabled
+            && ai->GroupHasRealPlayer();
+
         if (player)
         {
             std::string playerName = player->GetName();
 
-            if (player != bot && (player->isRealPlayer() || (sPlayerbotAIConfig.llmBotToBotChatChance && urand(0, 99) < sPlayerbotAIConfig.llmBotToBotChatChance)))
+            if (player != bot && (player->isRealPlayer()
+                || (sPlayerbotAIConfig.llmBotToBotChatChance && urand(0, 99) < sPlayerbotAIConfig.llmBotToBotChatChance)
+                || (isPartyOrRaidBotToBot && sPlayerbotAIConfig.llmPartyBotToBotChatChance && urand(0, 99) < sPlayerbotAIConfig.llmPartyBotToBotChatChance)))
             {
                 std::map<std::string, std::string> placeholders;
 
                 GetAIChatPlaceholders(placeholders, bot, player);
                 GetAIChatPlaceholders(placeholders, bot, "bot");
                 GetAIChatPlaceholders(placeholders, player, "other");
+
+                // Let the model know exactly who is present, so it can address people by name.
+                std::string groupMembers = bot->GetName();
+                uint32 groupSize = 1;
+                if (Group* group = bot->GetGroup())
+                {
+                    groupMembers.clear();
+                    groupSize = 0;
+                    for (GroupReference* gref = group->GetFirstMember(); gref; gref = gref->next())
+                    {
+                        Player* member = gref->getSource();
+                        if (!member || !member->IsInWorld())
+                            continue;
+
+                        if (!groupMembers.empty())
+                            groupMembers += ", ";
+                        groupMembers += member->GetName();
+                        groupSize++;
+                    }
+                }
+                placeholders["<group members>"] = groupMembers;
+                placeholders["<group size>"] = std::to_string(groupSize);
 
                 std::map<ChatChannelSource, std::string> sourceName;
                 sourceName[ChatChannelSource::SRC_GUILD] = "in guild chat";
@@ -564,7 +593,7 @@ void ChatReplyAction::ChatReplyDo(Player* bot, uint32 type, uint32 guid1, uint32
                 std::string llmPromptCustom = AI_VALUE(std::string, "manual saved string::llmdefaultprompt");
 
                 std::map<std::string, std::string> jsonFill;
-                jsonFill["<pre prompt>"] = sPlayerbotAIConfig.llmPrePrompt + " " + llmPromptCustom;
+                jsonFill["<pre prompt>"] = (isPartyOrRaidBotToBot ? sPlayerbotAIConfig.llmPartyPrePrompt : sPlayerbotAIConfig.llmPrePrompt) + " " + llmPromptCustom;
                 jsonFill["<prompt>"] = sPlayerbotAIConfig.llmPrompt;
                 jsonFill["<post prompt>"] = sPlayerbotAIConfig.llmPostPrompt;
 
@@ -669,6 +698,88 @@ void ChatReplyAction::ChatReplyDo(Player* bot, uint32 type, uint32 guid1, uint32
     }
 
     SendGeneralResponse(bot, chatChannelSource, GenerateReplyMessage(bot, msg, guid1, name), name);
+}
+
+bool ChatReplyAction::InitiateGroupChat(Player* bot)
+{
+    PlayerbotAI* ai = bot->GetPlayerbotAI();
+    Group* group = bot->GetGroup();
+
+    if (!ai || !group)
+        return false;
+
+    AiObjectContext* context = ai->GetAiObjectContext();
+
+    ChatChannelSource chatChannelSource = group->IsRaidGroup() ? ChatChannelSource::SRC_RAID : ChatChannelSource::SRC_PARTY;
+    uint32 type = group->IsRaidGroup() ? CHAT_MSG_RAID : CHAT_MSG_PARTY;
+
+    std::string llmChannel;
+    if (!sPlayerbotAIConfig.llmGlobalContext)
+        llmChannel = std::to_string(chatChannelSource);
+
+    std::string llmContext = AI_VALUE(std::string, "manual string::llmcontext" + llmChannel);
+
+    std::map<std::string, std::string> placeholders;
+    GetAIChatPlaceholders(placeholders, bot, "bot");
+
+    std::string groupMembers;
+    uint32 groupSize = 0;
+    for (GroupReference* gref = group->GetFirstMember(); gref; gref = gref->next())
+    {
+        Player* member = gref->getSource();
+        if (!member || !member->IsInWorld())
+            continue;
+
+        if (!groupMembers.empty())
+            groupMembers += ", ";
+        groupMembers += member->GetName();
+        groupSize++;
+    }
+    placeholders["<group members>"] = groupMembers;
+    placeholders["<group size>"] = std::to_string(groupSize);
+    placeholders["<channel name>"] = group->IsRaidGroup() ? "in raid chat" : "in party chat";
+    placeholders["<initial message>"] = "";
+
+    std::string llmPromptCustom = AI_VALUE(std::string, "manual saved string::llmdefaultprompt");
+
+    std::map<std::string, std::string> jsonFill;
+    jsonFill["<pre prompt>"] = sPlayerbotAIConfig.llmPartyInitiatePrompt + " " + llmPromptCustom;
+    jsonFill["<prompt>"] = "";
+    jsonFill["<post prompt>"] = sPlayerbotAIConfig.llmPostPrompt;
+
+    for (auto& prompt : jsonFill)
+        prompt.second = BOT_TEXT2(prompt.second, placeholders);
+
+    uint32 currentLength = jsonFill["<pre prompt>"].size() + jsonFill["<prompt>"].size() + llmContext.size();
+    PlayerbotLLMInterface::LimitContext(llmContext, currentLength);
+    jsonFill["<context>"] = llmContext;
+
+    for (auto& prompt : jsonFill)
+        prompt.second = PlayerbotLLMInterface::SanitizeForJson(prompt.second);
+
+    for (auto& prompt : placeholders)
+        prompt.second = PlayerbotLLMInterface::SanitizeForJson(prompt.second);
+
+    std::string startPattern, endPattern, deletePattern, splitPattern;
+    startPattern = PlayerbotTextMgr::GetReplacePlaceholders(sPlayerbotAIConfig.llmResponseStartPattern, placeholders);
+    endPattern = PlayerbotTextMgr::GetReplacePlaceholders(sPlayerbotAIConfig.llmResponseEndPattern, placeholders);
+    deletePattern = PlayerbotTextMgr::GetReplacePlaceholders(sPlayerbotAIConfig.llmResponseDeletePattern, placeholders);
+    splitPattern = PlayerbotTextMgr::GetReplacePlaceholders(sPlayerbotAIConfig.llmResponseSplitPattern, placeholders);
+
+    std::string json = PlayerbotTextMgr::GetReplacePlaceholders(sPlayerbotAIConfig.llmApiJson, jsonFill);
+    json = PlayerbotTextMgr::GetReplacePlaceholders(json, placeholders);
+
+    bool debug = ai->HasStrategy("debug llm", BotState::BOT_STATE_NON_COMBAT);
+
+    WorldSession* session = bot->GetSession();
+
+    WorldPacket chatTemplate = GetPacketTemplate(CMSG_MESSAGECHAT, type, bot, nullptr);
+
+    futurePackets futPackets = std::async(std::launch::async, ChatReplyAction::GenerateResponsePackets, json, chatTemplate, WorldPacket(), WorldPacket(), startPattern, endPattern, deletePattern, splitPattern, debug);
+
+    ai->SendDelayedPacket(session, std::move(futPackets));
+
+    return true;
 }
 
 bool ChatReplyAction::HandleThunderfuryReply(Player* bot, ChatChannelSource chatChannelSource, std::string msg, std::string name)

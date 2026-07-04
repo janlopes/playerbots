@@ -596,6 +596,8 @@ public:
     bool HasPlayerNearby(float range = sPlayerbotAIConfig.reactDistance);
     bool HasManyPlayersNearby(uint32 trigerrValue = 20, float range = sPlayerbotAIConfig.sightDistance);
     bool ChannelHasRealPlayer(std::string channelName);
+    //Checks if any other member of this bot's group is (or is ultimately controlled by) a real player.
+    bool GroupHasRealPlayer();
 
 
     ActivePiorityType GetPriorityType();

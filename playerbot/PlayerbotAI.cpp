@@ -1606,6 +1606,10 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
 #ifdef MANGOSBOT_TWO
             case CHAT_MSG_PARTY_LEADER:
 #endif
+            case CHAT_MSG_RAID:
+#ifdef MANGOSBOT_TWO
+            case CHAT_MSG_RAID_LEADER:
+#endif
             case CHAT_MSG_YELL:
             case CHAT_MSG_WHISPER:
             case CHAT_MSG_GUILD:
@@ -1620,6 +1624,7 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
             {
             case CHAT_MSG_SAY:
             case CHAT_MSG_PARTY:
+            case CHAT_MSG_RAID:
             case CHAT_MSG_YELL:
                 p >> guid1 >> guid2;
                 break;
@@ -1648,6 +1653,7 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
                 [[fallthrough]];
             case CHAT_MSG_SAY:
             case CHAT_MSG_PARTY:
+            case CHAT_MSG_RAID:
             case CHAT_MSG_YELL:
             case CHAT_MSG_WHISPER:
             case CHAT_MSG_GUILD:
@@ -1677,6 +1683,8 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
             case CHAT_MSG_SAY:
             case CHAT_MSG_PARTY:
             case CHAT_MSG_PARTY_LEADER:
+            case CHAT_MSG_RAID:
+            case CHAT_MSG_RAID_LEADER:
             case CHAT_MSG_YELL:
             case CHAT_MSG_WHISPER:
             case CHAT_MSG_GUILD:
@@ -1688,7 +1696,7 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
             }
 #endif
 
-            bool isAiChat = sPlayerbotAIConfig.llmEnabled > 0 && (HasStrategy("ai chat", BotState::BOT_STATE_NON_COMBAT) || sPlayerbotAIConfig.llmEnabled == 3);
+            bool isAiChat = sPlayerbotAIConfig.llmEnabled > 0 && !sServerFacade.IsInCombat(bot) && (HasStrategy("ai chat", BotState::BOT_STATE_NON_COMBAT) || sPlayerbotAIConfig.llmEnabled == 3);
 
             if (m_recordIncommingMessages)
             {
@@ -1715,6 +1723,14 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
 #ifdef MANGOSBOT_TWO
                     case CHAT_MSG_PARTY_LEADER:
                         recievedChatType = "party leader";
+                        break;
+#endif
+                    case CHAT_MSG_RAID:
+                        recievedChatType = "raid";
+                        break;
+#ifdef MANGOSBOT_TWO
+                    case CHAT_MSG_RAID_LEADER:
+                        recievedChatType = "raid leader";
                         break;
 #endif
                     case CHAT_MSG_GUILD:
@@ -1770,6 +1786,15 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
 
                 ChatChannelSource chatChannelSource = GetChatChannelSource(bot, msgtype, chanName);
 
+                // Bot-to-bot ai chat eligibility for party/raid: only when a real player is present
+                // in the group. Never allows masterless/wandering bots to chat among themselves,
+                // and never applies outside party/raid (see AiPlayerbot.LLMPartyBotToBotChatEnabled).
+                // The actual chance to reply is decided once, in ChatReplyAction::ChatReplyDo.
+                bool isPartyOrRaidBotChat = isAiChat && isFromFreeBot
+                    && sPlayerbotAIConfig.llmPartyBotToBotChatEnabled
+                    && (msgtype == CHAT_MSG_PARTY || msgtype == CHAT_MSG_RAID)
+                    && GroupHasRealPlayer();
+
                 if (!isAiChat || isFromFreeBot)
                 {
                     // random bot speaks, chat CD
@@ -1780,13 +1805,13 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
                     if (bot->InBattleGround() && !(isMentioned || (msgtype != CHAT_MSG_CHANNEL && !isFromFreeBot)))
                         return;
 
-                    if (HasRealPlayerMaster() && guid1 != GetMaster()->GetObjectGuid())
+                    if (HasRealPlayerMaster() && guid1 != GetMaster()->GetObjectGuid() && !isPartyOrRaidBotChat)
                         return;
 
                     if (lang == LANG_ADDON)
                         return;
 
-                    if (boost::algorithm::istarts_with(message, sPlayerbotAIConfig.toxicLinksPrefix)
+                    if (!isPartyOrRaidBotChat && boost::algorithm::istarts_with(message, sPlayerbotAIConfig.toxicLinksPrefix)
                         && (GetChatHelper()->ExtractAllItemIds(message).size() > 0 || GetChatHelper()->ExtractAllQuestIds(message).size() > 0)
                         && sPlayerbotAIConfig.toxicLinksRepliesChance)
                     {
@@ -1795,14 +1820,14 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
                             return;
                         }
                     }
-                    else if ((GetChatHelper()->ExtractAllItemIds(message).count(19019) && sPlayerbotAIConfig.thunderfuryRepliesChance))
+                    else if (!isPartyOrRaidBotChat && (GetChatHelper()->ExtractAllItemIds(message).count(19019) && sPlayerbotAIConfig.thunderfuryRepliesChance))
                     {
                         if (urand(0, 60) > 0 || urand(1, 100) > sPlayerbotAIConfig.thunderfuryRepliesChance)
                         {
                             return;
                         }
                     }
-                    else
+                    else if (!isPartyOrRaidBotChat)
                     {
                         if (isFromFreeBot && urand(0, 20))
                             return;
@@ -1823,9 +1848,11 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
                     }
                 }
 
-                MANGOS_ASSERT(!message.empty());     
+                MANGOS_ASSERT(!message.empty());
                 QueueChatResponse(msgtype, guid1, ObjectGuid(), message, chanName, name, isAiChat);
-                GetAiObjectContext()->GetValue<time_t>("last said", "chat")->Set(time(0) + urand(5, 25));
+                GetAiObjectContext()->GetValue<time_t>("last said", "chat")->Set(time(0) + (isPartyOrRaidBotChat
+                    ? urand(sPlayerbotAIConfig.llmPartyBotToBotDelayMin, sPlayerbotAIConfig.llmPartyBotToBotDelayMax)
+                    : urand(5, 25)));
 
                 return;
             }
@@ -5888,6 +5915,29 @@ bool PlayerbotAI::ChannelHasRealPlayer(std::string channelName)
                 if (chna->IsOn(player.second->GetObjectGuid()))
                     return true;
         }
+    }
+
+    return false;
+}
+
+bool PlayerbotAI::GroupHasRealPlayer()
+{
+    Group* group = bot->GetGroup();
+    if (!group)
+        return false;
+
+    for (GroupReference* gref = group->GetFirstMember(); gref; gref = gref->next())
+    {
+        Player* member = gref->getSource();
+
+        if (!member || !member->IsInWorld())
+            continue;
+
+        if (member == bot)
+            continue;
+
+        if (!member->GetPlayerbotAI() || (member->GetPlayerbotAI() && member->GetPlayerbotAI()->HasRealPlayerMaster()))
+            return true;
     }
 
     return false;

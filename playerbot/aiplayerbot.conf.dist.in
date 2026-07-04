@@ -1081,8 +1081,36 @@ AiPlayerbot.LLMDefaultPromptsFile = llm_character_card.txt
 # Should previous conversations from all channels be mixed?
 # AiPlayerbot.LLMGlobalContext = 0
 
-# The chance (0-100) bots will use ai chat to respond to other bots 
+# The chance (0-100) bots will use ai chat to respond to other bots
 # AiPlayerbot.LLMBotToBotChatChance = 0
+
+# Master on/off switch for bots using ai chat to talk to each other in party/raid.
+# This only ever triggers when a real player is present in the same group - bots never
+# have ai chat conversations among themselves while alone. Never applies to any other
+# channel (general, LFG, guild, world, etc), only party and raid chat.
+# AiPlayerbot.LLMPartyBotToBotChatEnabled = 0
+
+# The chance (0-100) a bot will use ai chat to reply to another bot's party/raid message.
+# AiPlayerbot.LLMPartyBotToBotChatChance = 20
+
+# Cooldown range (seconds) applied after a bot-to-bot ai chat reply in party/raid, to keep the back and forth paced.
+# AiPlayerbot.LLMPartyBotToBotDelayMin = 8
+# AiPlayerbot.LLMPartyBotToBotDelayMax = 20
+
+# The chance (0-100), checked periodically, that a bot will spontaneously start a conversation
+# (a question/joke/comment) in its party/raid instead of only reacting to others.
+# AiPlayerbot.LLMPartyBotToBotInitiateChance = 5
+
+# Minimum/maximum time (seconds) between a given bot's own attempts to start a conversation this way.
+# AiPlayerbot.LLMPartyBotToBotInitiateCooldownMin = 120
+# AiPlayerbot.LLMPartyBotToBotInitiateCooldownMax = 300
+
+# The pre-prompt used for party/raid ai chat replies. Unlike LLMPrePrompt, this variant is aware
+# of the whole group via <group members> and <group size>, so bots can address others by name.
+# AiPlayerbot.LLMPartyPrePrompt = You are a roleplaying character in World of Warcraft: <expansion name>. Your name is <bot name>. You are level <bot level> and play as a <bot gender> <bot race> <bot class> that is currently in <bot subzone> <bot zone>. You are chatting <channel name> with your group, currently: <group members>. The <other type> <other name> just said something to the group. Answer as a roleplaying character, referring to others by name when it fits naturally. Limit responses to 100 characters.
+
+# The prompt used when a bot spontaneously starts a party/raid conversation (see LLMPartyBotToBotInitiateChance).
+# AiPlayerbot.LLMPartyInitiatePrompt = You are a roleplaying character in World of Warcraft: <expansion name>. Your name is <bot name>. You are level <bot level> and play as a <bot gender> <bot race> <bot class> that is currently in <bot subzone> <bot zone>. You are chatting <channel name> with your group, currently: <group members>. Start some small talk: ask a short question, make a joke or a comment to the group. Referring to others by name is encouraged. Limit responses to 100 characters.
 
 # The chance (0-100) bots will use ai chat talk to npcs during rpg
 # AiPlayerbot.LLMRpgAIChatChance = 100
