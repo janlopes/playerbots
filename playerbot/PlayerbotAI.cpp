@@ -1790,10 +1790,13 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
                 // in the group. Never allows masterless/wandering bots to chat among themselves,
                 // and never applies outside party/raid (see AiPlayerbot.LLMPartyBotToBotChatEnabled).
                 // The actual chance to reply is decided once, in ChatReplyAction::ChatReplyDo.
+                // Also requires the group to not be on its shared cooldown (see IsGroupChatOnCooldown),
+                // so several bots eligible to answer the same message don't all reply in a pile-on.
                 bool isPartyOrRaidBotChat = isAiChat && isFromFreeBot
                     && sPlayerbotAIConfig.llmPartyBotToBotChatEnabled
                     && (msgtype == CHAT_MSG_PARTY || msgtype == CHAT_MSG_RAID)
-                    && GroupHasRealPlayer();
+                    && GroupHasRealPlayer()
+                    && bot->GetGroup() && !IsGroupChatOnCooldown(bot->GetGroup()->GetId());
 
                 if (!isAiChat || isFromFreeBot)
                 {
@@ -5918,6 +5921,29 @@ bool PlayerbotAI::ChannelHasRealPlayer(std::string channelName)
     }
 
     return false;
+}
+
+namespace
+{
+    // Shared, group-wide pacing for party/raid bot-to-bot ai chat. Without this, several bots
+    // eligible to reply to the same message (or chain off each other's replies) can all speak
+    // within moments of each other, since each bot only tracks its own cooldown. Keyed by group
+    // id so different groups pace independently.
+    std::mutex groupChatCooldownMutex;
+    std::unordered_map<uint32, time_t> groupChatCooldowns;
+}
+
+bool PlayerbotAI::IsGroupChatOnCooldown(uint32 groupId)
+{
+    std::scoped_lock lock(groupChatCooldownMutex);
+    auto it = groupChatCooldowns.find(groupId);
+    return it != groupChatCooldowns.end() && time(0) < it->second;
+}
+
+void PlayerbotAI::PauseGroupChat(uint32 groupId, time_t until)
+{
+    std::scoped_lock lock(groupChatCooldownMutex);
+    groupChatCooldowns[groupId] = until;
 }
 
 bool PlayerbotAI::GroupHasRealPlayer()

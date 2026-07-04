@@ -192,8 +192,12 @@ namespace ai
             // Occasionally have the bot start small talk in its party/raid (see AiChatInitiateAction).
             // The action itself checks AiPlayerbot.LLMPartyBotToBotChatEnabled, group membership,
             // a real player being present in the group, its own cooldown and the initiate chance.
+            // Uses "often" (checked frequently) rather than "seldom" (which itself only fires on
+            // average every few minutes) since AiChatInitiateAction's own chance/cooldown is meant
+            // to be the main gate - stacking it behind an already-rare trigger made it fire far too
+            // infrequently in practice.
             triggers.push_back(new TriggerNode(
-                "seldom",
+                "often",
                 NextAction::array(0, new NextAction("ai chat initiate", 1.0f), NULL)));
         }
 #ifdef GenerateBotHelp

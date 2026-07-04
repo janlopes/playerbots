@@ -598,6 +598,9 @@ public:
     bool ChannelHasRealPlayer(std::string channelName);
     //Checks if any other member of this bot's group is (or is ultimately controlled by) a real player.
     bool GroupHasRealPlayer();
+    //Shared, group-wide pacing for party/raid bot-to-bot ai chat (see PlayerbotAI.cpp for details).
+    static bool IsGroupChatOnCooldown(uint32 groupId);
+    static void PauseGroupChat(uint32 groupId, time_t until);
 
 
     ActivePiorityType GetPriorityType();

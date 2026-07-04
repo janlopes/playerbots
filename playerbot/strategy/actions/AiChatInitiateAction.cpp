@@ -19,10 +19,15 @@ bool AiChatInitiateAction::isUseful()
     if (sServerFacade.IsInCombat(bot))
         return false;
 
-    if (!bot->GetGroup())
+    Group* group = bot->GetGroup();
+    if (!group)
         return false;
 
     if (!ai->GroupHasRealPlayer())
+        return false;
+
+    // Don't start talking over an ongoing exchange.
+    if (PlayerbotAI::IsGroupChatOnCooldown(group->GetId()))
         return false;
 
     AiObjectContext* context = ai->GetAiObjectContext();
@@ -40,6 +45,9 @@ bool AiChatInitiateAction::Execute(Event& event)
     AiObjectContext* context = ai->GetAiObjectContext();
     context->GetValue<time_t>("last said", "ai chat initiate")->Set(
         time(0) + urand(sPlayerbotAIConfig.llmPartyBotToBotInitiateCooldownMin, sPlayerbotAIConfig.llmPartyBotToBotInitiateCooldownMax));
+
+    if (Group* group = bot->GetGroup())
+        PlayerbotAI::PauseGroupChat(group->GetId(), time(0) + urand(sPlayerbotAIConfig.llmPartyBotToBotDelayMin, sPlayerbotAIConfig.llmPartyBotToBotDelayMax));
 
     return ChatReplyAction::InitiateGroupChat(bot);
 }

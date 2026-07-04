@@ -540,6 +540,14 @@ void ChatReplyAction::ChatReplyDo(Player* bot, uint32 type, uint32 guid1, uint32
                 || (sPlayerbotAIConfig.llmBotToBotChatChance && urand(0, 99) < sPlayerbotAIConfig.llmBotToBotChatChance)
                 || (isPartyOrRaidBotToBot && sPlayerbotAIConfig.llmPartyBotToBotChatChance && urand(0, 99) < sPlayerbotAIConfig.llmPartyBotToBotChatChance)))
             {
+                // Stagger the whole group once a bot commits to replying, so other bots eligible
+                // to answer the same message don't all pile on at once.
+                if (isPartyOrRaidBotToBot)
+                {
+                    if (Group* group = bot->GetGroup())
+                        PlayerbotAI::PauseGroupChat(group->GetId(), time(0) + urand(sPlayerbotAIConfig.llmPartyBotToBotDelayMin, sPlayerbotAIConfig.llmPartyBotToBotDelayMax));
+                }
+
                 std::map<std::string, std::string> placeholders;
 
                 GetAIChatPlaceholders(placeholders, bot, player);
