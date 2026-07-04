@@ -729,6 +729,10 @@ bool ChatReplyAction::InitiateGroupChat(Player* bot)
 
     std::map<std::string, std::string> placeholders;
     GetAIChatPlaceholders(placeholders, bot, "bot");
+    // <sender name> is what LLMPostPrompt ("<sender name>:") uses to cue the model whose turn
+    // it is to speak. Without this, the model has no clear "now talk as this character" marker
+    // and can end up hallucinating a whole back-and-forth exchange by itself.
+    GetAIChatPlaceholders(placeholders, bot, nullptr);
 
     std::string groupMembers;
     uint32 groupSize = 0;
